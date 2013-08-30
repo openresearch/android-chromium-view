@@ -12,13 +12,13 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.widget.Toast;
 
 import org.chromium.base.ChromiumActivity;
 import org.chromium.base.MemoryPressureListener;
 import org.chromium.content.app.LibraryLoader;
 import org.chromium.content.browser.ActivityContentVideoViewClient;
-import org.chromium.content.browser.AndroidBrowserProcess;
-import org.chromium.content.browser.BrowserStartupConfig;
+import org.chromium.content.browser.BrowserStartupController;
 import org.chromium.content.browser.ContentVideoViewClient;
 import org.chromium.content.browser.ContentView;
 import org.chromium.content.browser.ContentViewClient;
@@ -26,7 +26,6 @@ import org.chromium.content.browser.DeviceUtils;
 import org.chromium.content.browser.TracingIntentHandler;
 import org.chromium.content.common.CommandLine;
 import org.chromium.content.common.ProcessInitException;
-import org.chromium.content_shell.R;
 import org.chromium.ui.WindowAndroid;
 
 /**
@@ -45,15 +44,15 @@ public class ContentShellActivity extends ChromiumActivity {
     public static final String COMMAND_LINE_ARGS_KEY = "commandLineArgs";
 
     /**
-     * Sending an intent with this action will simulate a memory pressure signal
-     * at a critical level.
+     * Sending an intent with this action will simulate a memory pressure signal at a critical
+     * level.
      */
     private static final String ACTION_LOW_MEMORY =
             "org.chromium.content_shell.action.ACTION_LOW_MEMORY";
 
     /**
-     * Sending an intent with this action will simulate a memory pressure signal
-     * at a moderate level.
+     * Sending an intent with this action will simulate a memory pressure signal at a moderate
+     * level.
      */
     private static final String ACTION_TRIM_MEMORY_MODERATE =
             "org.chromium.content_shell.action.ACTION_TRIM_MEMORY_MODERATE";
@@ -64,7 +63,7 @@ public class ContentShellActivity extends ChromiumActivity {
     private BroadcastReceiver mReceiver;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         // Initializing the command line must occur before loading the library.
@@ -80,54 +79,67 @@ public class ContentShellActivity extends ChromiumActivity {
         DeviceUtils.addDeviceSpecificUserAgentSwitch(this);
         try {
             LibraryLoader.ensureInitialized();
-
-            setContentView(R.layout.content_shell_activity);
-            mShellManager = (ShellManager) findViewById(R.id.shell_container);
-            mWindowAndroid = new WindowAndroid(this);
-            mWindowAndroid.restoreInstanceState(savedInstanceState);
-            mShellManager.setWindow(mWindowAndroid);
-
-            String startupUrl = getUrlFromIntent(getIntent());
-            if (!TextUtils.isEmpty(startupUrl)) {
-                mShellManager.setStartupUrl(Shell.sanitizeUrl(startupUrl));
-            }
-
-            BrowserStartupConfig.setAsync(new BrowserStartupConfig.StartupCallback() {
-
-                @Override
-                public void run(int startupResult) {
-                    if (startupResult > 0) {
-                        // TODO: Show error message.
-                        Log.e(TAG, "ContentView initialization failed.");
-                        finish();
-                    } else {
-                        finishInitialization();
-                    }
-                }
-            });
-
-            if (!AndroidBrowserProcess.init(this, AndroidBrowserProcess.MAX_RENDERERS_LIMIT)) {
-                String shellUrl = ShellManager.DEFAULT_SHELL_URL;
-                if (savedInstanceState != null
-                        && savedInstanceState.containsKey(ACTIVE_SHELL_URL_KEY)) {
-                    shellUrl = savedInstanceState.getString(ACTIVE_SHELL_URL_KEY);
-                }
-                mShellManager.launchShell(shellUrl);
-                finishInitialization();
-            }
         } catch (ProcessInitException e) {
             Log.e(TAG, "ContentView initialization failed.", e);
             finish();
+            return;
+        }
+
+        setContentView(R.layout.content_shell_activity);
+        mShellManager = (ShellManager) findViewById(R.id.shell_container);
+        mWindowAndroid = new WindowAndroid(this);
+        mWindowAndroid.restoreInstanceState(savedInstanceState);
+        mShellManager.setWindow(mWindowAndroid);
+
+        String startupUrl = getUrlFromIntent(getIntent());
+        if (!TextUtils.isEmpty(startupUrl)) {
+            mShellManager.setStartupUrl(Shell.sanitizeUrl(startupUrl));
+        }
+
+        if (CommandLine.getInstance().hasSwitch(CommandLine.DUMP_RENDER_TREE)) {
+            if(BrowserStartupController.get(this).startBrowserProcessesSync(
+                   BrowserStartupController.MAX_RENDERERS_LIMIT)) {
+                finishInitialization(savedInstanceState);
+            } else {
+                initializationFailed();
+            }
+        } else {
+            BrowserStartupController.get(this).startBrowserProcessesAsync(
+                    new BrowserStartupController.StartupCallback() {
+                @Override
+                public void onSuccess(boolean alreadyStarted) {
+                    finishInitialization(savedInstanceState);
+                }
+
+                @Override
+                public void onFailure() {
+                    initializationFailed();
+                }
+            });
         }
     }
 
-    private void finishInitialization() {
+    private void finishInitialization(Bundle savedInstanceState) {
+        String shellUrl = ShellManager.DEFAULT_SHELL_URL;
+        if (savedInstanceState != null
+                && savedInstanceState.containsKey(ACTIVE_SHELL_URL_KEY)) {
+            shellUrl = savedInstanceState.getString(ACTIVE_SHELL_URL_KEY);
+        }
+        mShellManager.launchShell(shellUrl);
         getActiveContentView().setContentViewClient(new ContentViewClient() {
             @Override
             public ContentVideoViewClient getContentVideoViewClient() {
                 return new ActivityContentVideoViewClient(ContentShellActivity.this);
             }
         });
+    }
+
+    private void initializationFailed() {
+        Log.e(TAG, "ContentView initialization failed.");
+        Toast.makeText(ContentShellActivity.this,
+                R.string.browser_process_initialization_failed,
+                Toast.LENGTH_SHORT).show();
+        finish();
     }
 
     @Override

@@ -531,9 +531,16 @@ import java.util.Map;
                     lp.topMargin = topMargin;
                     view.setLayoutParams(lp);
                 } else if (mContainerView instanceof AbsoluteLayout) {
+                    // This fixes the offset due to a difference in
+                    // scrolling model of WebView vs. Chrome.
+                    // TODO(sgurun) fix this to use mContainerView.getScroll[X/Y]()
+                    // as it naturally accounts for scroll differences between
+                    // these models.
+                    leftMargin += mRenderCoordinates.getScrollXPixInt();
+                    topMargin += mRenderCoordinates.getScrollYPixInt();
                     android.widget.AbsoluteLayout.LayoutParams lp =
                             new android.widget.AbsoluteLayout.LayoutParams((int)width,
-                                    (int)height, leftMargin, topMargin);
+                                    (int)(height * scale), leftMargin, topMargin);
                     view.setLayoutParams(lp);
                 } else {
                     Log.e(TAG, "Unknown layout " + mContainerView.getClass().getName());
@@ -750,14 +757,7 @@ import java.util.Map;
         mContainerViewInternals = internalDispatcher;
 
         mContainerView.setWillNotDraw(false);
-        mContainerView.setFocusable(true);
-        mContainerView.setFocusableInTouchMode(true);
         mContainerView.setClickable(true);
-
-        if (mContainerView.getScrollBarStyle() == View.SCROLLBARS_INSIDE_OVERLAY) {
-            mContainerView.setHorizontalScrollBarEnabled(false);
-            mContainerView.setVerticalScrollBarEnabled(false);
-        }
 
         mZoomManager = new ZoomManager(mContext, this);
         mContentViewGestureHandler = new ContentViewGestureHandler(mContext, this, mZoomManager,
@@ -1193,23 +1193,21 @@ import java.util.Map;
         if (mNativeContentViewCore != 0) nativeClearHistory(mNativeContentViewCore);
     }
 
-    String getSelectedText() {
+    /**
+     * @return The selected text (empty if no text selected).
+     */
+    public String getSelectedText() {
         return mHasSelection ? mLastSelectedText : "";
     }
 
-    // End FrameLayout overrides.
-
     /**
-     * @see {@link android.webkit.WebView#flingScroll(int, int)}
+     * @return Whether the current selection is editable (false if no text selected).
      */
-    public void flingScroll(int vx, int vy) {
-        // Notes:
-        //   (1) Use large negative values for the x/y parameters so we don't accidentally scroll a
-        //       nested frame.
-        //   (2) vx and vy are inverted to match WebView behavior.
-        mContentViewGestureHandler.fling(
-                System.currentTimeMillis(), -Integer.MAX_VALUE, -Integer.MIN_VALUE, -vx, -vy);
+    public boolean isSelectionEditable() {
+        return mHasSelection ? mSelectionEditable : false;
     }
+
+    // End FrameLayout overrides.
 
     /**
      * @see View#onTouchEvent(MotionEvent)
@@ -1375,7 +1373,20 @@ import java.util.Map;
     public void evaluateJavaScript(
             String script, JavaScriptCallback callback) throws IllegalStateException {
         checkIsAlive();
-        nativeEvaluateJavaScript(mNativeContentViewCore, script, callback);
+        nativeEvaluateJavaScript(mNativeContentViewCore, script, callback, false);
+    }
+
+    /**
+     * Injects the passed Javascript code in the current page and evaluates it.
+     * If there is no page existing, a new one will be created.
+     *
+     * @param script The Javascript to execute.
+     * @throws IllegalStateException If the ContentView has been destroyed.
+     */
+    public void evaluateJavaScriptEvenIfNotYetNavigated(String script)
+            throws IllegalStateException {
+        checkIsAlive();
+        nativeEvaluateJavaScript(mNativeContentViewCore, script, null, true);
     }
 
     /**
@@ -1445,6 +1456,10 @@ import java.util.Map;
             mActionMode.finish();
             mActionMode = null;
         }
+    }
+
+    public boolean isSelectActionBarShowing() {
+        return mActionMode != null;
     }
 
     private void resetGestureDetectors() {
@@ -1866,7 +1881,10 @@ import java.util.Map;
 
     private void handleTapOrPress(
             long timeMs, float xPix, float yPix, int isLongPressOrTap, boolean showPress) {
-        if (!mContainerView.isFocused()) mContainerView.requestFocus();
+        if (mContainerView.isFocusable() && mContainerView.isFocusableInTouchMode()
+                && !mContainerView.isFocused())  {
+            mContainerView.requestFocus();
+        }
 
         if (!mPopupZoomer.isShowing()) mPopupZoomer.setLastTouch(xPix, yPix);
 
@@ -1899,6 +1917,10 @@ import java.util.Map;
 
     public void updateMultiTouchZoomSupport(boolean supportsMultiTouchZoom) {
         mZoomManager.updateMultiTouchSupport(supportsMultiTouchZoom);
+    }
+
+    public void updateDoubleTapDragSupport(boolean supportsDoubleTapDrag) {
+        mContentViewGestureHandler.updateDoubleTapDragSupport(supportsDoubleTapDrag);
     }
 
     public void selectPopupMenuItems(int[] indices) {
@@ -2020,8 +2042,14 @@ import java.util.Map;
         return mInsertionHandleController;
     }
 
+    @VisibleForTesting
     public InsertionHandleController getInsertionHandleControllerForTest() {
         return mInsertionHandleController;
+    }
+
+    @VisibleForTesting
+    public SelectionHandleController getSelectionHandleControllerForTest() {
+        return mSelectionHandleController;
     }
 
     private void updateHandleScreenPositions() {
@@ -2359,9 +2387,9 @@ import java.util.Map;
 
     @SuppressWarnings("unused")
     @CalledByNative
-    private SmoothScroller createSmoothScroller(boolean scrollDown, int mouseEventX,
-            int mouseEventY) {
-        return new SmoothScroller(this, scrollDown, mouseEventX, mouseEventY);
+    private GenericTouchGesture createGenericTouchGesture(int startX,
+            int startY, int deltaX, int deltaY) {
+        return new GenericTouchGesture(this, startX, startY, deltaX, deltaY);
     }
 
     @SuppressWarnings("unused")
@@ -2855,6 +2883,7 @@ import java.util.Map;
      * Enable or disable native accessibility features.
      */
     public void setNativeAccessibilityState(boolean enabled) {
+        if (mNativeContentViewCore == 0) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             nativeSetAccessibilityEnabled(mNativeContentViewCore, enabled);
         }
@@ -2892,43 +2921,6 @@ import java.util.Map;
     public void updateTopControlsState(boolean enableHiding, boolean enableShowing,
             boolean animate) {
         nativeUpdateTopControlsState(mNativeContentViewCore, enableHiding, enableShowing, animate);
-    }
-
-    /**
-     * @See android.webkit.WebView#pageDown(boolean)
-     */
-    public boolean pageDown(boolean bottom) {
-        final int maxVerticalScrollPix = mRenderCoordinates.getMaxVerticalScrollPixInt();
-        if (computeVerticalScrollOffset() >= maxVerticalScrollPix) {
-            // We seem to already be at the bottom of the page, so no scrolling will occur.
-            return false;
-        }
-
-        if (bottom) {
-            scrollTo(computeHorizontalScrollOffset(), maxVerticalScrollPix);
-        } else {
-            dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_PAGE_DOWN));
-            dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_PAGE_DOWN));
-        }
-        return true;
-    }
-
-    /**
-     * @See android.webkit.WebView#pageUp(boolean)
-     */
-    public boolean pageUp(boolean top) {
-        if (computeVerticalScrollOffset() == 0) {
-            // We seem to already be at the top of the page, so no scrolling will occur.
-            return false;
-        }
-
-        if (top) {
-            scrollTo(computeHorizontalScrollOffset(), 0);
-        } else {
-            dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_PAGE_UP));
-            dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_PAGE_UP));
-        }
-        return true;
     }
 
     /**
@@ -3148,7 +3140,7 @@ import java.util.Map;
     private native void nativeClearHistory(int nativeContentViewCoreImpl);
 
     private native void nativeEvaluateJavaScript(int nativeContentViewCoreImpl,
-            String script, JavaScriptCallback callback);
+            String script, JavaScriptCallback callback, boolean startRenderer);
 
     private native int nativeGetNativeImeAdapter(int nativeContentViewCoreImpl);
 

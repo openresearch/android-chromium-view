@@ -20,9 +20,9 @@ scp -r $BUILD/content/shell/android/shell_apk/src/* $PROJ/src/
 # copy content shell apk resources
 scp -r $BUILD/content/shell/android/shell_apk/res/* $PROJ/res/
 
-echo "FIXME: you need to hand merge the following files: \n"
-echo "\t $BUILD/content/shell/android/java/res/values/strings.xml \n"
-echo "\t $BUILD/content/shell/android/shell_apk/res/values/strings.xml \n"
+echo "FIXME: you need to hand merge the following files: "
+echo "  $BUILD/content/shell/android/java/res/values/strings.xml "
+echo "  $BUILD/content/shell/android/shell_apk/res/values/strings.xml "
 
 # copy the arm shared object
 mkdir -p $PROJ/libs/armeabi-v7a/

@@ -2,7 +2,7 @@
 
 # Make sure you setup and run ../../env.sh first
 
-export PROJ=$ACV_HOME/eyesfree
+export PROJ=$ACV_HOME/eyes-free
 
 # clean up
 rm -rf $PROJ/src/com/googlecode/*
