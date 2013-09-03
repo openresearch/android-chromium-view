@@ -1,6 +1,7 @@
 apply plugin: 'android'
 
 dependencies {
+    compile files('libs/native-libs.jar')
     compile fileTree(dir: 'libs', include: '*.jar')
     compile project(':base')
     compile project(':content')
@@ -37,4 +38,37 @@ android {
         debug.setRoot('build-types/debug')
         release.setRoot('build-types/release')
     }
+}
+
+/*
+ * Compress the native libs located at libs/armeabi/ into archive file
+ * libs/armeabi.jar
+ * Destination directory inside the archive is lib/armeabi/<libs>
+ *
+ * Example of .jar needed structure :
+ * |---lib/
+ * 		|---armeabi/
+ * 			|---libdatabase_sqlcipher.so
+ * 			|---libsqlcipher_android.so
+ * 			|---libstlport_shared.so
+ *		|---x86/
+ *   		|---libdatabase_sqlcipher.so
+ *   		|---libsqlcipher_android.so
+ *   		|---libstlport_shared.so
+ *
+ * reference : https://groups.google.com/forum/?fromgroups#!searchin/adt-dev/so/adt-dev/nQobKd2Gl_8/Z5yWAvCh4h4J
+ */
+task nativeLibsToJar(
+        type: Zip,
+        description: 'create a jar archive of the native libs') {
+    destinationDir file('./libs')
+    baseName 'native-libs'
+    extension 'jar'
+    from 'libs/armeabi-v7a'
+    include '**/*.so'
+    into 'lib/armeabi'
+}
+
+tasks.withType(Compile) {
+    compileTask -> compileTask.dependsOn(nativeLibsToJar)
 }

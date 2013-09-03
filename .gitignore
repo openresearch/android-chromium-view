@@ -4,3 +4,8 @@ build
 .gradle
 .idea
 *.iml
+
+# The android gradle build tools as of version 0.5.6 have no
+# NDK support, so we create a native-libs.jar on the fly
+# during the build.
+content-shell/libs/native-libs.jar

@@ -44,6 +44,14 @@ android.library.reference.5=../net
 
 Next, connect some Android ARM hardware, or use an emulator (slow), and run `content-shell` as an Android Application.  It should bring up a browser with a simple address bar and back/forward buttons.  The underlying browser is Chromium (obviously).  You're on your own if you want to modify / tweak the sources from here, but this is a good starting place.
 
+# Getting Started with Gradle
+
+Asuming you have the Android build environment up and running (and the environment variable ANDROID_HOME is defined), you should be able to build the project from the command line by running `./gradlew build`.
+
+If you have an Android device connected to your development machine, you can build and install the application on your device by running `./gradlew installDebug`.
+
+You can also import the project into Android Studio and run it from there. Android Studio (as of version 0.2.6) might think there are some dependencies unresolved, but it should still build fine.
+
 # Updating Chromium
 
 Build the latest Chromium for Android (see instructions above).  Each project contained herein has a `scripts/` directory.  There is also and `env.sh` script in the root dir -- modify that first to set it to your environment.  Now, you can run each subdir's sh script as necessary to copy the latest artifacts over from the Chromium build tree.
