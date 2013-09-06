@@ -26,7 +26,11 @@ echo "  $BUILD/content/shell/android/shell_apk/res/values/strings.xml "
 
 # copy the arm shared object
 mkdir -p $PROJ/libs/armeabi-v7a/
-scp -r $BUILD/out/Release/content_shell_apk/libs/armeabi-v7a/libcontent_shell_content_view.so $PROJ/libs/armeabi-v7a/
+scp $BUILD/out/Release/content_shell_apk/libs/armeabi-v7a/libcontent_shell_content_view.so $PROJ/libs/armeabi-v7a/
+
+# copy the x86 shared object (if you built it)
+mkdir -p $PROJ/libs/x86/
+scp $BUILD/out/Release/content_shell_apk/libs/x86/libcontent_shell_content_view.so $PROJ/libs/x86/
 
 # copy .pak file
 scp $BUILD/out/Release/content_shell/assets/content_shell.pak $PROJ/assets/
