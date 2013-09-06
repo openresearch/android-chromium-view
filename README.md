@@ -3,34 +3,18 @@ Android Chromium View
 
 # Introduction
 
-This project was inspired by [pwnall's chromeview](https://github.com/pwnall/chromeview), but it shares no common code.
+This project was inspired by [pwnall's chromeview](https://github.com/pwnall/chromeview), but it shares no common code.  The goal of this project is similar to that project -- which is to allow you to embed a replacement for the stock [Android WebView](https://developer.android.com/reference/android/webkit/WebView.html), using the latest [Chromium](http://www.chromium.org/Home).
 
-The goal of this project is to provide the resources needed to build a replacement for the stock Android WebView with the latest [Chromium](http://www.chromium.org/Home) browser.  Here you'll find the tools you need to get going, and a handful of Android projects that will allow you to build an Android library or WebApp that uses Chromium.  If you're looking to do such a thing, I'd expect you'd fork this and use it as a baseline -- the goal is to just save you some time on homework I already did.
+## Why
 
-Nearly all of the source in here is copied from the Chromium project and thus subject to Chromium license(s) -- `LICENSE` files are found w/in each project.  This project also contains a snapshot in time binary build of Chromium for Android (ARM target only).  Instructions below if you want to update Chromium.
+* Android WebView does not have the same performance characteristics as Chromium (the latter is faster)
+* Android WebView lacks feature parity with Chromium.  The Chromium team moves fast, it is usually one of the first browsers to receive new W3C features, etc.
+* Android WebView is embedded and tied to the platform -- updating it therefore becomes problematic since you have to update the whole platform to update the browser
 
-# Pre-requisites for Building Chromium
+## What Is The Difference Between This & ChromeView
+The [chromeview](https://github.com/pwnall/chromeview) project was an awesome start to solving this problem, and I started there, but henceforth, the author has stated that he lacks the time to dedicate to it.  So, I originally [forked](http://github.com/davisford/chromeview) it, and updated Chromium to a newer build.  Then I looked into the [scrolling issues](https://github.com/pwnall/chromeview/pull/6) and after some digging, decided that there was a separate build artifact out of Chromium that would provide a better base than the one chromeview was currently using.  The code was different enough that I felt it just warranted a separate repo -- so that's what you have here.  Scrolling does work great here.  There are some quirks, so check the [issues](https://github.com/davisford/android-chromium-view/issues?state=open) to figure out what isn't quite working (yet).
 
-I recommend you build on a virtual machine, preferably Ubuntu 12.04.  At the time of writing, this was the supported distribution and version that Google uses.  If you deviate from that, you may need to fight with tools / scripts / environment to get it to build.
-
-I have made slight modifications to @pwnall's build instructions  [here](https://github.com/davisford/chromeview/blob/master/crbuild/vm-build.md) -- use that to get started setting up a VM.  I use VMWare Fusion instead of Virtual Box, so adjust for your virtual container of choice.  Make sure you give it enough disk -- I recommend ~60GB.  You will also need some legitimate hardware to build Chromium.  I give my VM 4 cores, and 4GB RAM, and that will talk nearly a whole day to compile.  If you're trying to build on a single core, forget it.
-
-# Tips
-
-## Setting up for GDB debugging
-You may decide you'll want to debug the C++ Chromium source.  My setup is as follows:
-
-* Mac Book Pro (host) with ADT installed on it - I use this to build the Android apps / libraries and use `adb` between it and the USB Android hardware I'm developing on
-* Ubuntu 12.04 running inside VMWare Fusion on MBP - I use this to build Chromium
-
-Since I run ADT on the Mac, I want to also run gdb client on the Mac.  In order to step through source, my Mac needs access to it.  The instructions in @pwnall's docs had you check out the source in Linux to `/mnt/chromium`.  I modified that.  Instead, I setup a mirrored folder in VMWare (i.e. a folder that both the Guest and Host OS can see).  It happens to be `/mnt/hgfs/crbuild/chromium` and this is where I've checked out the Chromium sources.  That folder maps to `/Users/<myname>/crbuild` on my Mac, so that I can point gdb to the sources there while debugging.
-
-## avahi
-
-I whole-heartedly recommend setting up `avahi` software on the Guest OS (as per the instructions linked above) -- it makes things a lot easier to copy files between them, etc.
-
-# Getting Started
-
+## What Do I Do With This
 You should be able to import all of these projects into ADT and they should compile without error.  Each project may have dependencies on the other projects.  `content-shell` is the only application project.  It needs to include all the library projects in its deployable apk.  Make sure that the `project.properties` file for that project contains:
 
 ```
@@ -44,8 +28,14 @@ android.library.reference.5=../net
 
 Next, connect some Android ARM hardware, or use an emulator (slow), and run `content-shell` as an Android Application.  It should bring up a browser with a simple address bar and back/forward buttons.  The underlying browser is Chromium (obviously).  You're on your own if you want to modify / tweak the sources from here, but this is a good starting place.
 
-# Getting Started with Gradle
+From here, you can decide to use that as a stock browser wrapper, or obviously modify / add / edit / delete all the Java, C++, or JavaScript to your heart's content to build it into whatever you want.
 
+## Artifacts: Assets & Libraries
+The main Chromium artifact is a native shared library `.so`.  It also depends on a `.pak` file in the `/assets` folder (you'll find these in the `content-shell` app).  As built, these need to be included in your `/libs` and `/assets` folder of your project, and they *will* add a good 30-40MB of binary goodness to the size of your app.  However, if you're savvy, you could figure out a way to load those from a central location on the platform, so they don't have to be included in `.apk` file.  This will require code modifications.
+
+The rest of the projects include java source and Android assets that were authored by Google to get Chromium to show up in a standard Android view and interact with it.
+
+## Gradle Support
 Asuming you have the Android build environment up and running (and the environment variable ANDROID_HOME is defined), you should be able to build the project from the command line by running `./gradlew build`.
 
 If you have an Android device connected to your development machine, you can build and install the application on your device by running `./gradlew installDebug`.
@@ -54,9 +44,28 @@ You can also import the project into Android Studio and run it from there. Andro
 
 # Updating Chromium
 
-Build the latest Chromium for Android (see instructions above).  Each project contained herein has a `scripts/` directory.  There is also and `env.sh` script in the root dir -- modify that first to set it to your environment.  Now, you can run each subdir's sh script as necessary to copy the latest artifacts over from the Chromium build tree.
+Build the latest Chromium for Android (see instructions below).  Each project contained herein has a `scripts/` directory.  There is also and `env.sh` script in the root dir -- modify that first to set it to your environment.  Now, you can run each subdir's sh script as necessary to copy the latest artifacts over from the Chromium build tree.
 
 Google updates this code constantly, so if you git pull on Chromium repo and rebuild, then copy the stuff over here, there's no guarantee that all of this won't break.
+
+## License
+Nearly all of the source in here is copied from the Chromium project and thus subject to Chromium license(s) -- `LICENSE` files are found w/in each project.  This project also contains a snapshot in time binary build of Chromium for Android (ARM target only).  Instructions below if you want to update Chromium.
+
+## What Version of Chromium Is It?
+
+TODO: I aim to add git tags to the repo to identify various Chromium builds.  Currently, the one in here was build in mid-August 2013 (more details coming).
+
+# Pre-requisites for Building Chromium
+@pwnall has some [nice instructions](https://github.com/pwnall/chromeview/blob/master/crbuild/vm-build.md) for how to setup a Chromium build machine on a VM.  I have made a [couple of tweaks to it on my own fork](https://github.com/davisford/chromeview/blob/master/crbuild/vm-build.md) -- namely stick with Ubuntu 12.04 for the least amount of headache.
+
+I build on a MBP using an Ubuntu 12.04 image I created in VMWare Fusion.  You will need some decent hardware to build Chromium.  On 4 cores with 4GB RAM it can take several hours to complete the build.  If you have a single core, forget it.
+
+If you have a spare machine to setup a build machine, I suppose that would be even nicer.
+
+# Tips
+
+## Setting up for GDB debugging
+Something you may want to consider is to make the Chromium source available to your dev machine where you execute Android, so that you can attach gdb, and step through the native sources.  I still have to [document this setup](https://github.com/davisford/android-chromium-view/issues/8) 
 
 # Pull Requests
 
