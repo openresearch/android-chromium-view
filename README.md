@@ -72,3 +72,10 @@ Something you may want to consider is to make the Chromium source available to y
 Pull requests welcome to help improve the environment / shell scripts -- or even re-factor the projects.  In Android, the project's namespace is important, and if you have multiple package namespaces with resources, then it becomes a PITA to resolve the `R.java` files.  This is why I broke it out (one project per namespace) -- to avoid this problem.  Some of the projects don't contain any resources, however, and they could really be merged into a single library, but I left them separate, as you never know if Google decides to add resources to a project, then this structure already works and requires no re-factoring.
 
 Don't send pull requests for Google authored code b/c it will just be re-written on the next update.  Don't send pull requests for updates to Chromium, I'd prefer you just fork the repo and update those yourself.
+
+# Invaluable Resources
+
+* [Online Chromium Code Search](https://code.google.com/p/chromium/codesearch) - I use this a lot.
+* [Chromium For Developers Docs](http://dev.chromium.org/developers) - best start reading if you want to really get into this
+* [Chromium For Android Build Instructions](https://code.google.com/p/chromium/wiki/AndroidBuildInstructions) - instructions and scripts provided by @pwnall in [chromeview](https://github.com/davisford/chromeview/tree/master/crbuild) parse this down, but I'm just dropping this here for reference
+* [Android WebView Talk At Google I/O 2012](https://developers.google.com/events/io/2012/sessions/gooio2012/122/) - might prove useful for some background info
