@@ -41,9 +41,9 @@ android {
 }
 
 /*
- * Compress the native libs located at libs/armeabi/ into archive file
- * libs/armeabi.jar
- * Destination directory inside the archive is lib/armeabi/<libs>
+ * Compress the native libs located at libs/ into archive file
+ * libs/native-libs.jar
+ * Destination directory inside the archive is lib/<arch>/<libs>
  *
  * Example of .jar needed structure :
  * |---lib/
@@ -64,11 +64,12 @@ task nativeLibsToJar(
     destinationDir file('./libs')
     baseName 'native-libs'
     extension 'jar'
-    from 'libs/armeabi-v7a'
-    include '**/*.so'
-    into 'lib/armeabi'
+    from fileTree(dir: 'libs', include: '**/*.so')
+    into 'lib/'
 }
 
 tasks.withType(Compile) {
     compileTask -> compileTask.dependsOn(nativeLibsToJar)
 }
+
+clean.dependsOn 'cleanNativeLibsToJar'
